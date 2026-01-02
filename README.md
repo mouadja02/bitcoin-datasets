@@ -17,9 +17,18 @@ This repository serves as a public database for Bitcoin data, designed for ML pr
 - **Social Data**: Twitter and Reddit engagement metrics
 - **News**: Latest Bitcoin news articles
 
-### 2. **NewHedge** - ⏸️ Coming Soon
-- Comprehensive Bitcoin dashboard metrics (Dominance, Hashrate, ETF Holdings, On-chain data)
+### 2. **NewHedge** - ✅ Ready (Schema Defined)
+- **Market Data**: Price, performance, market cap, Fear & Greed Index
+- **Blockchain Metrics**: Blocks, transactions, UTXOs
+- **Mining Data**: Hashrate, difficulty, rewards, revenue
+- **Supply Metrics**: Issuance, holder distribution, halving countdown
+- **Holdings**: Corporate and government Bitcoin reserves
+- **Trading**: Exchange volume, ETFs, futures open interest
+- **Onchain Indicators**: MVRV, NVT, RHODL, Reserve Risk, etc.
+- **Macro Metrics**: Global M2, correlations, gold comparison
 - Data scraped using [Firecrawl](https://firecrawl.dev)
+- **Schema**: 17 normalized tables in `NEWHEDGE` schema
+- **Documentation**: See [NEWHEDGE_SCHEMA.md](docs/NEWHEDGE_SCHEMA.md)
 
 ## 🏗️ Architecture
 
@@ -28,6 +37,7 @@ This repository serves as a public database for Bitcoin data, designed for ML pr
 - **Storage Strategy**:
   - **CSV Files**: Stored in `data/` directory (publicly accessible via GitHub)
   - **Snowflake Database**: Automatic upload with MERGE operations on unique keys
+  - **Schemas**: Separate `COINDESK` and `NEWHEDGE` schemas for data organization
 - **Logging**: Comprehensive console logging for monitoring and debugging
 
 ## 📁 Directory Structure
@@ -35,7 +45,9 @@ This repository serves as a public database for Bitcoin data, designed for ML pr
 ```
 bitcoin-datasets/
 ├── data/
-│   └── coindesk/              # CoinDesk data CSVs
+│   ├── coindesk/              # CoinDesk data CSVs
+│   ├── newhedge/              # NewHedge data CSVs
+│   └── newhedge_export/       # Exported Snowflake tables
 │       ├── pricemultifull.csv           # Current BTC/USD price
 │       ├── histoday.csv                 # Daily OHLCV (2000 bars)
 │       ├── histohour.csv                # Hourly OHLCV (2000 bars)
@@ -44,11 +56,17 @@ bitcoin-datasets/
 │       ├── hourly_social_data.csv       # Social media metrics
 │       └── news.csv                     # Latest Bitcoin news
 ├── scripts/
-│   ├── fetch_coindesk.py      # Main data fetcher (uses CryptoCompare API)
-│   ├── fetch_newhedge.py      # NewHedge scraper (paused)
+│   ├── fetch_coindesk.py      # CoinDesk data fetcher (CryptoCompare API)
+│   ├── fetch_newhedge.py      # NewHedge scraper
+│   ├── load_newhedge_to_snowflake.py  # Load NewHedge to Snowflake
+│   ├── run_newhedge_pipeline.py       # Complete NewHedge pipeline
 │   ├── config.yml             # API endpoint configurations
-│   └── update_snowflake.py    # Snowflake uploader (deprecated - now integrated)
+│   └── update_snowflake.py    # Snowflake uploader (schema-aware)
 ├── migrations/                 # Snowflake schema migrations
+│   ├── V1.1.1__Initial_Schema.sql     # CoinDesk tables
+│   └── V1.1.2__Initial_Newhedge_tables.sql  # NewHedge tables
+├── docs/
+│   └── NEWHEDGE_SCHEMA.md     # NewHedge schema documentation
 ├── .github/
 │   └── workflows/
 │       └── update_data.yml    # GitHub Actions workflow

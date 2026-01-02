@@ -50,17 +50,17 @@ def get_snowflake_conn():
         logger.error(f"Could not connect to Snowflake: {e}")
         return None
 
-def check_table_status(conn, table_name):
+def check_table_status(conn, schema_name, table_name):
     """
     Returns (exists, row_count)
     """
     try:
         cursor = conn.cursor()
         # Check if table exists
-        cursor.execute(f"SHOW TABLES LIKE '{table_name.upper()}'")
+        cursor.execute(f"SHOW TABLES LIKE '{table_name.upper()}' IN SCHEMA {schema_name}")
         if cursor.fetchone():
             # Get count
-            cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+            cursor.execute(f"SELECT COUNT(*) FROM {schema_name}.{table_name}")
             result = cursor.fetchone()
             count = result[0] if result else 0
             return True, count
@@ -69,20 +69,20 @@ def check_table_status(conn, table_name):
         logger.error(f"Error checking table status for {table_name}: {e}")
         return False, 0
 
-def get_table_columns(conn, table_name):
+def get_table_columns(conn, schema_name, table_name):
     """
     Returns a list of uppercase column names for the table.
     """
     try:
         cursor = conn.cursor()
-        cursor.execute(f"DESCRIBE TABLE {table_name}")
+        cursor.execute(f"DESCRIBE TABLE {schema_name}.{table_name}")
         columns = [row[0].upper() for row in cursor.fetchall()]
         return columns
     except Exception as e:
         logger.error(f"Error fetching columns for {table_name}: {e}")
         return []
 
-def perform_merge(conn, df, table_name, unique_key):
+def perform_merge(conn, df, schema_name, table_name, unique_key):
     """
     Performs a MERGE operation into the target table using a temporary staging table.
     """
@@ -95,7 +95,8 @@ def perform_merge(conn, df, table_name, unique_key):
         success, _, _, _ = write_pandas(
             conn,
             df,
-            stage_table,
+            schema= 'PUBLIC',
+            table_name= stage_table,
             auto_create_table=True,
             table_type="TEMPORARY",
             quote_identifiers=True  # Quote identifiers to handle reserved keywords
@@ -119,8 +120,8 @@ def perform_merge(conn, df, table_name, unique_key):
         insert_vals = ", ".join([f's."{col}"' for col in columns])
 
         merge_sql = f"""
-        MERGE INTO {table_name} t
-        USING {stage_table} s
+        MERGE INTO {schema_name}.{table_name} t
+        USING PUBLIC.{stage_table} s
         ON t."{unique_key}" = s."{unique_key}"
         WHEN MATCHED THEN
             UPDATE SET {update_clause}
@@ -143,7 +144,7 @@ def perform_merge(conn, df, table_name, unique_key):
         except:
             pass
 
-def upload_and_fetch_from_snowflake(df, table_name, unique_key=None):
+def upload_and_fetch_from_snowflake(df, schema_name, table_name, unique_key=None):
     """
     1. Uploads/Merges fresh df to Snowflake.
     2. Downloads the full unique dataset.
@@ -187,12 +188,11 @@ def upload_and_fetch_from_snowflake(df, table_name, unique_key=None):
             # Bulk load or Append (no unique key)
             load_type = "Bulk Load (Empty Table)" if row_count == 0 else "Append (No Unique Key)"
             logger.info(f"Table {table_name} has {row_count} rows. Performing {load_type}...")
-            # Use quote_identifiers=True to handle reserved keywords like TO, FROM
             write_pandas(conn, df, table_name, auto_create_table=False, quote_identifiers=True)
 
         # 2. Export (Full Dataset)
         sort_col = "TIMESTAMP" if "TIMESTAMP" in df.columns else ("TIME" if "TIME" in df.columns else df.columns[0])
-        query = f'SELECT DISTINCT * FROM {table_name} ORDER BY "{sort_col}" DESC'
+        query = f'SELECT DISTINCT * FROM {schema_name}.{table_name} ORDER BY "{sort_col}" ASC'
 
         logger.info(f"Fetching full updated data from {table_name}...")
         cursor = conn.cursor()
@@ -354,10 +354,11 @@ def process_and_save(key: str, url: str, api_key: str):
                 df['fetched_at'] = datetime.now(timezone.utc).isoformat()
             
             # Prepare Table Name
-            table_name = f"COINDESK_{key.upper()}"
+            schema_name = "COINDESK"
+            table_name = f"{key.upper()}"
             
             # Upload to Snowflake and get back the FULL updated table
-            final_df = upload_and_fetch_from_snowflake(df, table_name, unique_key)
+            final_df = upload_and_fetch_from_snowflake(df, schema_name,table_name, unique_key)
             
             os.makedirs(OUTPUT_DIR, exist_ok=True)
             file_path = os.path.join(OUTPUT_DIR, f'{key}.csv')
