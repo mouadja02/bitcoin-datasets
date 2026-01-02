@@ -2,8 +2,8 @@ name: Update Bitcoin Data
 
 on:
   schedule:
-    - cron: '0 4 * * *' # Run every morning at 04:00
-  workflow_dispatch: # Allow manual trigger
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
